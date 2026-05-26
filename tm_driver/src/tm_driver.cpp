@@ -277,6 +277,10 @@ bool TmDriver::fake_run_pvt_traj(const TmPvtTraj &pvts)
 	point.time = pvts.points[0].time;
 
 	while (_is_executing_traj) {
+		if (idx >= pvts.points.size()) {
+			print_warn("fake_run_pvt_traj: index out of bounds, breaking");
+			break;
+		}
 		cubic_interp(point, p0, pvts.points[idx], point.time);
 		state.mtx_set_joint_states(point.positions, point.velocities, zeros);
 
@@ -289,11 +293,19 @@ bool TmDriver::fake_run_pvt_traj(const TmPvtTraj &pvts)
 			point.time -= pvts.points[idx].time;
 			time_start = time_now;
 			++idx;
-			if (idx == pvts.points.size()) break;
+			if (idx >= pvts.points.size()) break;  // CHANGED: >= instead of ==
 
 			print_info(TmCommand::set_pvt_point(pvts.mode, pvts.points[idx]).c_str());
 		}
 	}
+	// last point
+	if (_is_executing_traj && pvts.points.size() >= 2) {
+		idx = pvts.points.size() - 1;
+		if (idx > 0) {
+			cubic_interp(point, pvts.points[idx - 1], pvts.points[idx], pvts.points[idx].time);
+		}
+	}
+	state.mtx_set_joint_states(point.positions, zeros, zeros);
 	// last point
 	if (_is_executing_traj) {
 		idx = pvts.points.size() - 1;
