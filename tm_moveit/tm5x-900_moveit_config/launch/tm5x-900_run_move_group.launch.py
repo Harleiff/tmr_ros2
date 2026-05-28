@@ -86,6 +86,7 @@ def generate_launch_description():
     }
     ompl_planning_yaml = load_yaml(moveit_config_path, 'config/ompl_planning.yaml')
     ompl_planning_pipeline_config['ompl'].update(ompl_planning_yaml)
+    
 
     # Trajectory Execution Configuration
     # Controllers
@@ -98,6 +99,8 @@ def generate_launch_description():
         'trajectory_execution.allowed_execution_duration_scaling': 1.2,
         'trajectory_execution.allowed_goal_duration_margin': 0.5,
         'trajectory_execution.allowed_start_tolerance': 0.1,
+        'trajectory_execution.execution_duration_monitoring': False,
+        'trajectory_execution.wait_for_trajectory_completion': True,
     }
 
     # Planning scene
@@ -130,7 +133,6 @@ def generate_launch_description():
             moveit_controllers,
             planning_scene_monitor_parameters,
             joint_limits_yaml,
-            {"use_sim_time": True},
         ],
     )
 
@@ -179,8 +181,26 @@ def generate_launch_description():
         # name='tm_driver',
         output='screen',
         emulate_tty=True,
-        arguments=args
+        arguments=args,
+        # respawn=True,          
+        # respawn_delay=2.0,
     )
+    # TCP Bridge Node (for Windows communication)
+    tcp_bridge_node = Node(
+        package='ella_controller',  # package name
+        executable='tcp_communication',  #  TCP bridge executable
+        name='tcp_communication',
+        output='screen',
+        parameters=[{
+            'port': 9999,
+            'host': '0.0.0.0'
+        }]
+    )
+    tm_control_node = Node(
+            package="ella_controller",
+            executable="test_angles",
+            output="screen",
+        )
 
     # Launching all the nodes
     return LaunchDescription(
@@ -190,5 +210,7 @@ def generate_launch_description():
             static_tf,
             robot_state_publisher,
             run_move_group_node,
+            tcp_bridge_node,
+            tm_control_node,
         ]
     )
