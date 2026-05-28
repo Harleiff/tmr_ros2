@@ -41,28 +41,23 @@ def load_yaml(package_name, file_path):
 
 
 def generate_launch_description():
-    args = []
-    if (len(sys.argv) >= 5):
-        i = 4
-        while i < len(sys.argv):
-            args.append(sys.argv[i])
-            i = i + 1
-
     # Configure robot_description
-    description_path = 'tm_description'
-    xacro_path = 'tm5x-900.urdf.xacro'
-    moveit_config_path = 'tm5x-900_moveit_config'    
+    moveit_config_path = 'tm5x-900_moveit_config'
     srdf_path = 'config/tm5x-900.srdf'
     rviz_path = '/launch/run_move_group.rviz'
 
+    moveit_config_share = get_package_share_directory(moveit_config_path)
+
     # -------------------------------------------------------------------------
-    # Load the robot_description
+    # Load the robot_description (moveit_config xacro includes the
+    # mock_components/GenericSystem fake hardware needed for standalone mode)
     robot_description_config = xacro.process_file(
-        os.path.join(
-            get_package_share_directory(description_path),
-            'xacro',
-            xacro_path,
-        )
+        os.path.join(moveit_config_share, 'config', 'tm5x-900.urdf.xacro'),
+        mappings={
+            'initial_positions_file': os.path.join(
+                moveit_config_share, 'config', 'initial_positions.yaml'
+            )
+        },
     )
     robot_description = {'robot_description': robot_description_config.toxml()}
     # -------------------------------------------------------------------------
@@ -133,6 +128,7 @@ def generate_launch_description():
             moveit_controllers,
             planning_scene_monitor_parameters,
             joint_limits_yaml,
+            {"use_sim_time": False},
         ],
     )
 
@@ -174,16 +170,30 @@ def generate_launch_description():
         parameters=[robot_description]
     )
 
-    # joint driver
-    tm_driver_node = Node(
-        package='tm_driver',
-        executable='tm_driver',
-        # name='tm_driver',
+    # ros2_control: controller_manager driving the mock (fake) hardware
+    ros2_controllers_path = os.path.join(
+        moveit_config_share, 'config', 'ros2_controllers.yaml'
+    )
+    ros2_control_node = Node(
+        package='controller_manager',
+        executable='ros2_control_node',
         output='screen',
         emulate_tty=True,
-        arguments=args,
-        # respawn=True,          
-        # respawn_delay=2.0,
+        parameters=[robot_description, ros2_controllers_path],
+    )
+
+    # Spawn joint_state_broadcaster -> publishes /joint_states
+    joint_state_broadcaster_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['joint_state_broadcaster', '--controller-manager', '/controller_manager'],
+    )
+
+    # Spawn the arm trajectory controller -> executes MoveIt trajectories
+    tm_arm_controller_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['tmr_arm_controller', '--controller-manager', '/controller_manager'],
     )
     # TCP Bridge Node (for Windows communication)
     tcp_bridge_node = Node(
@@ -205,7 +215,9 @@ def generate_launch_description():
     # Launching all the nodes
     return LaunchDescription(
         [
-            tm_driver_node,
+            ros2_control_node,
+            joint_state_broadcaster_spawner,
+            tm_arm_controller_spawner,
             rviz_node,
             static_tf,
             robot_state_publisher,
