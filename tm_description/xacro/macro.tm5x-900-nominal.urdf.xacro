@@ -2,45 +2,46 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <xacro:include filename="$(find tm_description)/xacro/macro.inertial.xacro" />
+  <xacro:include filename="$(find ella_gripper_description)/urdf/ella_gripper.xacro" />
 
-  <xacro:macro name="tm5x-900" params="ns prefix color format
+  <xacro:macro name="tm5x-900" params="ns prefix color:=none format:=obj
     joint_1_lower_limit:=${radians(-360)}    joint_1_upper_limit:=${radians(360)}
-    joint_2_lower_limit:=${radians(-360)}    joint_2_upper_limit:=${radians(360)}
+    joint_2_lower_limit:=${radians(-80)}    joint_2_upper_limit:=${radians(80)}
     joint_3_lower_limit:=${radians(-155)}    joint_3_upper_limit:=${radians(155)}
     joint_4_lower_limit:=${radians(-360)}    joint_4_upper_limit:=${radians(360)}
     joint_5_lower_limit:=${radians(-360)}    joint_5_upper_limit:=${radians(360)}
     joint_6_lower_limit:=${radians(-360)}    joint_6_upper_limit:=${radians(360)}
-    joint_1_velocity_limit:=${radians(180)}
+    joint_1_velocity_limit:=${radians(180)}    
     joint_2_velocity_limit:=${radians(180)}
-    joint_3_velocity_limit:=${radians(180)}
+    joint_3_velocity_limit:=${radians(180)}    
     joint_4_velocity_limit:=${radians(225)}
-    joint_5_velocity_limit:=${radians(225)}
+    joint_5_velocity_limit:=${radians(225)}    
     joint_6_velocity_limit:=${radians(225)}
-    joint_1_effort_limit:=${157}
+    joint_1_effort_limit:=${157}    
     joint_2_effort_limit:=${157}
-    joint_3_effort_limit:=${157}
+    joint_3_effort_limit:=${157}    
     joint_4_effort_limit:=${43}
-    joint_5_effort_limit:=${43}
-    joint_6_effort_limit:=${43}
+    joint_5_effort_limit:=${43}    
+    joint_6_effort_limit:=${43}   
     safety_limits:=false safety_pos_margin:=0.15
     safety_k_position:=20">
 
-    <xacro:property name="damping_factor" value="0.000"/>
-    <xacro:property name="d1" value="${damping_factor*0.1}"/>
-    <xacro:property name="d2" value="${damping_factor*0.1}"/>
-    <xacro:property name="d3" value="${damping_factor*0.1}"/>
-    <xacro:property name="d4" value="${damping_factor*0.1}"/>
-    <xacro:property name="d5" value="${damping_factor*0.1}"/>
-    <xacro:property name="d6" value="${damping_factor*0.1}"/>
+   <xacro:property name="damping_factor" value="0.000"/>
+   <xacro:property name="d1" value="${damping_factor*0.1}"/>
+   <xacro:property name="d2" value="${damping_factor*0.1}"/>
+   <xacro:property name="d3" value="${damping_factor*0.1}"/>
+   <xacro:property name="d4" value="${damping_factor*0.1}"/>
+   <xacro:property name="d5" value="${damping_factor*0.1}"/>
+   <xacro:property name="d6" value="${damping_factor*0.1}"/>
 
-    <xacro:property name="friction_factor" value="0.000"/>
-    <xacro:property name="f1" value="${friction_factor*0.1}"/>
-    <xacro:property name="f2" value="${friction_factor*0.1}"/>
-    <xacro:property name="f3" value="${friction_factor*0.1}"/>
-    <xacro:property name="f4" value="${friction_factor*0.1}"/>
-    <xacro:property name="f5" value="${friction_factor*0.1}"/>
-    <xacro:property name="f6" value="${friction_factor*0.1}"/>
-
+   <xacro:property name="friction_factor" value="0.000"/>
+   <xacro:property name="f1" value="${friction_factor*0.1}"/>
+   <xacro:property name="f2" value="${friction_factor*0.1}"/>
+   <xacro:property name="f3" value="${friction_factor*0.1}"/>
+   <xacro:property name="f4" value="${friction_factor*0.1}"/>
+   <xacro:property name="f5" value="${friction_factor*0.1}"/>
+   <xacro:property name="f6" value="${friction_factor*0.1}"/>
+      
     <!-- Inertia parameters -->
     <xacro:property name="mass_0" value="1.000" />
     <xacro:property name="mass_1" value="4.032" />
@@ -72,34 +73,13 @@
     <xacro:property name="izz_5" value="${2643.21*unit_factor}" />
     <xacro:property name="izz_6" value="${286.595*unit_factor}" />
 
-    <xacro:property name="specified_color_arms" default="false" />
-    <xacro:property name="prefix_monochrome_command" default="true" />
-
-    <!-- If other applications conflict with the color definition of URDF, try disable_prefix_color to close it -->
-    <xacro:property name="disable_prefix_color" default="false" />
-    <xacro:if value="${disable_prefix_color}">
-      <prefix_monochrome_command value="false"/>
-    </xacro:if>
-    <xacro:if value="${format == 'stl'}">
-      <specified_color_arms value="true"/>
-      <prefix_monochrome_command value="false"/>
-    </xacro:if>
-    <xacro:if value="${prefix_monochrome_command}">
-      <xacro:tm_materials/>
-    </xacro:if>
-
 <!--LinkDescription-->
   <link name="${prefix}link_0">
     <visual>
       <geometry>
         <mesh filename="package://tm_description/meshes/tm5-900/visual/tm5-base.${format}" />
       </geometry>
-      <xacro:if value="${specified_color_arms}">
-        <xacro:tm_material_whitegraphite />
-      </xacro:if>
-      <xacro:if value="${prefix_monochrome_command}">
-        <material name="${color}" />
-      </xacro:if>
+      <material name="${color}" />
     </visual>
     <collision>
       <geometry>
@@ -128,12 +108,7 @@
       <geometry>
         <mesh filename="package://tm_description/meshes/tm5-900/visual/tmr_400w_01.${format}" />
       </geometry>
-      <xacro:if value="${specified_color_arms}">
-        <xacro:tm_material_darkolive />
-      </xacro:if>
-      <xacro:if value="${prefix_monochrome_command}">
-        <material name="${color}" />
-      </xacro:if>
+      <material name="${color}" />
     </visual>
     <collision>
       <geometry>
@@ -163,12 +138,7 @@
       <geometry>
         <mesh filename="package://tm_description/meshes/tm5-900/visual/tm5-900_arm1.${format}" />
       </geometry>
-      <xacro:if value="${specified_color_arms}">
-        <xacro:tm_material_darkolive />
-      </xacro:if>
-      <xacro:if value="${prefix_monochrome_command}">
-        <material name="${color}" />
-      </xacro:if>
+      <material name="${color}" />
     </visual>
     <collision>
       <geometry>
@@ -198,12 +168,7 @@
       <geometry>
         <mesh filename="package://tm_description/meshes/tm5-900/visual/tm5-900_arm2.${format}" />
       </geometry>
-      <xacro:if value="${specified_color_arms}">
-        <xacro:tm_material_gold />
-      </xacro:if>
-      <xacro:if value="${prefix_monochrome_command}">
-        <material name="${color}" />
-      </xacro:if>
+      <material name="${color}" />
     </visual>
     <collision>
       <geometry>
@@ -233,12 +198,7 @@
       <geometry>
         <mesh filename="package://tm_description/meshes/tm5-900/visual/tmr_100w_01.${format}" />
       </geometry>
-      <xacro:if value="${specified_color_arms}">
-        <xacro:tm_material_darkolive />
-      </xacro:if>
-      <xacro:if value="${prefix_monochrome_command}">
-        <material name="${color}" />
-      </xacro:if>
+      <material name="${color}" />
     </visual>
     <collision>
       <geometry>
@@ -268,12 +228,7 @@
       <geometry>
         <mesh filename="package://tm_description/meshes/tm5-900/visual/tmr_100w_02.${format}" />
       </geometry>
-      <xacro:if value="${specified_color_arms}">
-        <xacro:tm_material_darkolive />
-      </xacro:if>
-      <xacro:if value="${prefix_monochrome_command}">
-        <material name="${color}" />
-      </xacro:if>
+      <material name="${color}" />
     </visual>
     <collision>
       <geometry>
@@ -303,12 +258,7 @@
       <geometry>
         <mesh filename="package://tm_description/meshes/tm5-900/visual/tmr_iox.${format}" />
       </geometry>
-      <xacro:if value="${specified_color_arms}">
-        <xacro:tm_material_purewhite />
-      </xacro:if>
-      <xacro:if value="${prefix_monochrome_command}">
-        <material name="${color}" />
-      </xacro:if>
+      <material name="${color}" />
     </visual>
     <collision>
       <geometry>
@@ -321,6 +271,13 @@
       <inertia ixx="${ixx_6}" ixy="0.000000" ixz="0.000000" iyy="${iyy_6}" iyz="0.000000" izz="${izz_6}" />
     </inertial>
   </link>
+  <link name="world"/> 
+  <joint name="world_to_base" type="fixed">
+    <parent link="world"/>
+    <child link="base"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
   <link name="${prefix}base" />
   <joint name="${prefix}base_fixed_joint" type="fixed">
     <parent link="${prefix}base" />
@@ -331,9 +288,12 @@
   <joint name="${prefix}flange_fixed_joint" type="fixed">
     <parent link="${prefix}link_6" />
     <child link="${prefix}flange" />
-    <origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.000000 0.000000" />
+    <origin rpy="0.000000 0.000000 0.000000" xyz="0.00000 0.000000 0.230000" />
   </joint>
 <!--LinkDescription-->
+
+<!-- Attach Ella Gripper at TM flange -->
+<xacro:ella_gripper parent_link="${prefix}link_6"/>
 
   </xacro:macro>
 

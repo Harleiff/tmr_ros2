@@ -1,5 +1,5 @@
 ############################################################################################### 
-#  tm5x-900_moveit.launch.py
+#  tmx5-900_moveit.launch.py
 #   
 #  Various portions of the code are based on original source from 
 #  The reference: "https://github.com/moveit/moveit2/tree/main/moveit_ros/moveit_servo/launch"
@@ -160,7 +160,24 @@ def generate_launch_description():
         output='screen',
         arguments=args
     )
-
+    
+   
+    # TCP Bridge Node (for Windows communication)
+    tcp_bridge_node = Node(
+        package='ella_controller',  # package name
+        executable='tcp_communication',  #  TCP bridge executable
+        name='tcp_communication',
+        output='screen',
+        parameters=[{
+            'port': 9999,
+            'host': '0.0.0.0'
+        }]
+    )
+    tm_control_node = Node(
+            package="ella_controller",
+            executable="test_angles",
+            output="screen",
+        )
     # Launching all the nodes
     return LaunchDescription(
         [
@@ -172,5 +189,7 @@ def generate_launch_description():
             ros2_control_node,
             joint_state_broadcaster_spawner,
             tm_arm_controller_spawner,
+            tcp_bridge_node,
+            tm_control_node,
         ]
     )

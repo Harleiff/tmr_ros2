@@ -160,7 +160,17 @@ def generate_launch_description():
         output='screen',
         arguments=args
     )
-
+    # TCP Bridge Node (for Windows communication)
+    tcp_bridge_node = Node(
+        package='ella_controller',  # package name
+        executable='tcp_communication',  #  TCP bridge executable
+        name='tcp_communication',
+        output='screen',
+        parameters=[{
+            'port': 9999,
+            'host': '0.0.0.0'
+        }]
+    )
     # Launching all the nodes
     return LaunchDescription(
         [
@@ -172,5 +182,6 @@ def generate_launch_description():
             ros2_control_node,
             joint_state_broadcaster_spawner,
             tm_arm_controller_spawner,
+            tcp_bridge_node,
         ]
     )
