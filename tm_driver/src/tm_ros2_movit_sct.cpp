@@ -54,19 +54,19 @@ rclcpp_action::GoalResponse TmRos2SctMoveit::handle_goal(const rclcpp_action::Go
 void TmRos2SctMoveit::handle_accepted(
   std::shared_ptr<rclcpp_action::ServerGoalHandle<control_msgs::action::FollowJointTrajectory>> goal_handle)
 {
-  {
     std::unique_lock<std::mutex> lck(goal_mtx_);
     goals_queue_.push_back(goal_handle);
-  }
-  print_info("[ACTION] goals_queue_ size: %d", goals_queue_.size());
-  
-  if (!goal_thread_open_) {
-    print_debug("Open Goal Thread");
-    if (goal_thread_.joinable()) {
-      goal_thread_.join();
+    print_info("[ACTION] goals_queue_ size: %d", goals_queue_.size());
+    
+    if (!goal_thread_open_) {
+        goal_thread_open_ = true;  // Set BEFORE spawning
+        lck.unlock();  // Unlock before starting thread
+        
+        if (goal_thread_.joinable()) {
+            goal_thread_.join();
+        }
+        goal_thread_ = std::thread(&TmRos2SctMoveit::execute_goal_traj, this);
     }
-    goal_thread_ = std::thread(&TmRos2SctMoveit::execute_goal_traj, this);
-  }
 }
 
 rclcpp_action::CancelResponse TmRos2SctMoveit::handle_cancel(
@@ -99,16 +99,16 @@ rclcpp_action::CancelResponse TmRos2SctMoveit::handle_cancel(
 
 void TmRos2SctMoveit::execute_goal_traj()
 {
-  {
-    std::unique_lock<std::mutex> lck(goal_mtx_);
-    goal_thread_open_ = true;
-  }
+  // {
+  //   std::unique_lock<std::mutex> lck(goal_mtx_);
+  //   goal_thread_open_ = true;
+  // }
   print_info("[ACTION] -----goal execution thread begin-----");
-  auto result = std::make_shared<control_msgs::action::FollowJointTrajectory::Result>();
+  
 
   while (!goals_queue_.empty()){
     auto goal_handle = goals_queue_.front();
-
+    auto result = std::make_shared<control_msgs::action::FollowJointTrajectory::Result>();
     try {
       auto &traj_points = goal_handle->get_goal()->trajectory.points;
       bool is_match_start_pose = is_positions_match(traj_points.front(), 0.01);
@@ -129,6 +129,11 @@ void TmRos2SctMoveit::execute_goal_traj()
       else {
         iface_.fake_run_pvt_traj(*pvts);
       }
+      if (!goal_handle->is_active() && !goal_handle->is_canceling()) {
+                print_warn("[ACTION] Goal handle invalid after execution");
+                goals_queue_.pop_front();
+                continue;
+            }
       // ERROR, and clear goal queue
       if (iface_.is_sct_error) {
         result->error_code = result->INVALID_JOINTS;
@@ -168,6 +173,7 @@ void TmRos2SctMoveit::execute_goal_traj()
           goal_handle->succeed(result);
         }
       }
+      pvts.reset();
     }
     catch (...) {
       result->error_code = result->INVALID_GOAL;
@@ -175,6 +181,8 @@ void TmRos2SctMoveit::execute_goal_traj()
       goal_handle->abort(result);
     }
     goals_queue_.pop_front();
+    // Force a small delay to let ROS clean up
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
   {
@@ -266,6 +274,10 @@ void TmRos2SctMoveit::set_pvt_traj(
   }
   for (i = 1; i < traj_points.size() - 1; ++i) {
     point.time = sec(traj_points[i].time_from_start) - sec(traj_points[i_1].time_from_start);
+    if (point.time <= 0.0) {
+            print_warn("[ACTION] Traj.: skipping point with time <= 0: %f", point.time);
+            continue;  // Skip invalid point
+        }
     if (point.time >= Tmin) {
       i_2 = i_1;
       i_1 = i;

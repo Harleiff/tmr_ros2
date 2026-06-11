@@ -42,12 +42,25 @@ class TmRos2SctMoveit : public TmSctRos2{
      , state_(iface.state){
         intial_action();
     }
-    ~TmRos2SctMoveit()
-    {
-      goals_queue_.clear();
-      if (goal_thread_.joinable())
+    ~TmRos2SctMoveit() 
       {
-        goal_thread_.join();
+          // 1. Stop accepting new goals
+          if (as_) {
+              as_.reset();  // Destroy action server and its timers FIRST
+          }
+          
+          // 2. Stop ongoing trajectory
+          iface_.stop_pvt_traj();
+          
+          // 3. Clear queue and wake up goal thread
+          {
+              std::unique_lock<std::mutex> lck(goal_mtx_);
+              goals_queue_.clear();
+          }
+          
+          // 4. Wait for goal thread
+          if (goal_thread_.joinable()) {
+              goal_thread_.join();
+          }
       }
-    }
 };

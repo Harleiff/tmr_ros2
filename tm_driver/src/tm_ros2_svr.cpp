@@ -31,10 +31,10 @@ TmSvrRos2::TmSvrRos2(rclcpp::Node::SharedPtr node, TmDriver &iface, bool is_fake
     svr_updated_ = false;
 
     if (!is_fake) {
-        ethernetSlaveConnection = std::make_unique<EthernetSlaveConnection>
-      (iface,std::bind(&TmSvrRos2::publish_svr, this),stick_play);
+        ethernetSlaveConnection = std::make_unique<EthernetSlaveConnection>(
+            iface, std::bind(&TmSvrRos2::publish_svr, this), stick_play);
         pubDataTimer = node->create_wall_timer(
-          std::chrono::milliseconds(publishTimeMs), std::bind(&TmSvrRos2::pub_data, this));
+            std::chrono::milliseconds(publishTimeMs), std::bind(&TmSvrRos2::pub_data, this));
         connect_tm_srv_ = node->create_service<tm_msgs::srv::ConnectTM>(
             "connect_tmsvr", std::bind(&TmSvrRos2::connect_tmsvr, this,
             std::placeholders::_1, std::placeholders::_2));
@@ -45,28 +45,57 @@ TmSvrRos2::TmSvrRos2(rclcpp::Node::SharedPtr node, TmDriver &iface, bool is_fake
             "ask_item", std::bind(&TmSvrRos2::ask_item, this,
             std::placeholders::_1, std::placeholders::_2));
     } else {
-      std::vector<double> zeros(state_.DOF);
-      state_.set_fake_joint_states(zeros, zeros, zeros);
-      pubDataTimer = node->create_wall_timer(
-        std::chrono::milliseconds(publishTimeMs), std::bind(&TmSvrRos2::pub_data, this));
-      
-      getDataThread = std::thread(std::bind(&TmSvrRos2::fake_publisher, this));
+        std::vector<double> zeros(state_.DOF);
+        state_.set_fake_joint_states(zeros, zeros, zeros);
+        pubDataTimer = node->create_wall_timer(
+            std::chrono::milliseconds(publishTimeMs), std::bind(&TmSvrRos2::pub_data, this));
+        getDataThread = std::thread(std::bind(&TmSvrRos2::fake_publisher, this));
     }
 }
 
 TmSvrRos2::~TmSvrRos2()
 {
-    if (getDataThread.joinable()) {
-      getDataThread.join();
+    // Cancel the timer so the executor stops calling pub_data().
+    // Do NOT call pubDataTimer.reset() — resetting from outside the executor
+    // thread races collect_entities and causes SIGSEGV in TimerBase::get_timer_handle().
+    if (pubDataTimer) {
+        pubDataTimer->cancel();
     }
 
-    print_info("TM_ROS: (Ethernet slave) halt");		
+    if (getDataThread.joinable()) {
+        getDataThread.join();
+    }
+
+    print_info("TM_ROS: (Ethernet slave) halt");
     svr_updated_ = true;
     svr_cv_.notify_all();
 
-     if (is_fake) return;
+    if (is_fake) return;
 }
 
+void TmSvrRos2::fake_publisher()
+{
+    PubMsg &pm = pm_;
+    TmRobotState &state = state_;
+
+    print_info("TM_ROS: fake publisher thread begin");
+
+    while (rclcpp::ok()) {
+        // Local message — never touches fbs_pub.
+        // pub_data() timer owns fbs_pub on the executor thread.
+        // joint_pub is only written here (fake mode) so no race.
+        sensor_msgs::msg::JointState joint_msg;
+        joint_msg.header.stamp = node->rclcpp::Node::now();
+        joint_msg.name = jns_;
+        joint_msg.position = state.joint_angle();
+        joint_msg.velocity = state.joint_speed();
+        joint_msg.effort   = state.joint_torque();
+        pm.joint_pub->publish(joint_msg);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    print_info("TM_ROS: fake publisher thread end\n");
+}
 void TmSvrRos2::publish_fbs()
 {
     PubMsg &pm = pm_;
@@ -167,48 +196,32 @@ void TmSvrRos2::publish_fbs()
     pm.tool_pose_msg.pose.orientation = tf2::toMsg(quat);
     pm.tool_pose_pub->publish(pm.tool_pose_msg);
 }
-void TmSvrRos2::fake_publisher()
-{
-    PubMsg &pm = pm_;
-    TmRobotState &state = state_;
-    bool fbs_lock_ = false; /* MC-001: modify */ 
+// void TmSvrRos2::fake_publisher()
+// {
+//     print_info("TM_ROS: fake publisher thread begin");
 
-    print_info("TM_ROS: fake publisher thread begin");		
+//     while (rclcpp::ok()) {
+//         // Use a fully local message — never touch pm_.fbs_msg or pm_.fbs_pub.
+//         // pub_data() → publish_fbs() owns fbs_pub via the timer on the executor
+//         // thread. In fake mode there is no timer, so fbs_pub is simply not
+//         // published. joint_pub is safe here because nothing else writes to it
+//         // in fake mode (no timer, no pub_data).
+//         sensor_msgs::msg::JointState joint_msg;
+//         joint_msg.header.stamp = node->rclcpp::Node::now();
+//         joint_msg.name = jns_;
 
-    while (rclcpp::ok()) {
-      // Publish feedback state
-      pm.fbs_msg.header.stamp = node->rclcpp::Node::now();
-      {
-        /* MC-001:start */
-        if(state.get_receive_state() != TmCommRC::TIMEOUT) {
-          fbs_lock_ = true;
-          state.mtx_lock();
-        }
-        /* MC-001:end */		
-        pm.fbs_msg.joint_pos = state.joint_angle();
-        pm.fbs_msg.joint_vel = state.joint_speed();
-        pm.fbs_msg.joint_tor = state.joint_torque();
+//         // Getters lock data_mtx internally — safe to call from any thread
+//         joint_msg.position = state_.joint_angle();
+//         joint_msg.velocity = state_.joint_speed();
+//         joint_msg.effort   = state_.joint_torque();
 
-        /* MC-001:start */
-        if((state.get_receive_state() != TmCommRC::TIMEOUT) || (fbs_lock_ != false)) {	
-          state.mtx_unlock();
-          fbs_lock_ = false; 
-        }
-        /* MC-001:end */		
-      }
-      pm.fbs_pub->publish(pm.fbs_msg);
+//         pm_.joint_pub->publish(joint_msg);
 
-      // Publish joint state
-      pm.joint_msg.header.stamp = pm.fbs_msg.header.stamp;
-      pm.joint_msg.position = pm.fbs_msg.joint_pos;
-      pm.joint_msg.velocity = pm.fbs_msg.joint_vel;
-      pm.joint_msg.effort = pm.fbs_msg.joint_tor;
-      pm.joint_pub->publish(pm.joint_msg);
+//         std::this_thread::sleep_for(std::chrono::milliseconds(10));
+//     }
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-    print_info("TM_ROS: fake publisher thread end\n");	
-}
+//     print_info("TM_ROS: fake publisher thread end");
+// }
 void TmSvrRos2::pub_data(){
     iface_.state.update_tm_robot_publish_state();
     publish_fbs();
